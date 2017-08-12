@@ -1,0 +1,1 @@
+A repository containing Shiny applications for exploring statistical concepts
