@@ -258,8 +258,8 @@ server <- function(input, output) {
     output$vary_prob_null <- renderPlot({
         sens <- input$power
         spec <- 1-input$alpha
-        ppv_vec <- ppv(sens = sens, spec = spec, prev = prob_vec)
-        npv_vec <- npv(sens = sens, spec = spec, prev = prob_vec)
+        ppv_vec <- ppv(sens = sens, spec = spec, prev = 1-prob_vec)
+        npv_vec <- npv(sens = sens, spec = spec, prev = 1-prob_vec)
         plot(prob_vec, ppv_vec, type = "l", lwd = 2, xlab = "P(null true)", ylab = "", main = paste0("Power = ", sens, ". Type I error = ", 1-spec, "."), ylim = c(0,1.1))
         lines(prob_vec, npv_vec, lwd = 2, col = "dodgerblue")
         legend("topleft", legend = c("P(alt. true | reject)", "P(null true | fail to reject)"), col = c("black", "dodgerblue"), lwd = 2, bty = "n")
