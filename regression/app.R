@@ -286,20 +286,14 @@ server <- function(input, output) {
     })
 
     output$plot_observed <- renderPlot({
-        print("a")
         if (input$error_type=="noise") {
             state$xobs <- state$true_x + rnorm(SAMPLE_SIZE_MERROR, 0, input$noise_sd)
-            print("b")
         } else if (input$error_type=="misreport") {
-            print("c")
             state$xobs <- x_observed()
         }
-        print("f")
         df_merror <- data.frame(y = state$yobs, x = state$xobs)
-        print("g")
         lmfit_merror <- tidy(lm(y ~ x, data = df_merror))
-        print("h")
-        plot(state$xobs, state$yobs, pch = 16, xlab = "Observed x", ylab = "Outcome")
+        plot(state$xobs, state$yobs, pch = 16, xlab = "Observed x", ylab = "Outcome", main = paste("Estimated slope:", round(lmfit_merror$estimate[2], 2)))
         abline(a = TRUE_INTERCEPT, b = input$true_slope, lwd = 2, col = "dodgerblue")
         abline(a = lmfit_merror$estimate[1], b = lmfit_merror$estimate[2], lwd = 1, col = "red", lty = "dashed")
         legend("topleft", bty = "n", legend = c("Truth", "Estimated"), col = c("dodgerblue", "red"), lty = c("solid", "dashed"), lwd = c(2,1))
