@@ -6,6 +6,8 @@ load("data/regression_data.rda")
 
 NUM_RESAMPLE <- 100
 SIZE_RESAMPLE <- round(nrow(train)*0.6)
+TRUE_INTERCEPT <- 5
+SAMPLE_SIZE_MERROR <- 300
 
 optimal_p <- function(fit, data) {
     logodds <- predict(fit)
@@ -104,12 +106,83 @@ ui <- navbarPage(
                 plotOutput("acc_plot")
             )
         )
-    ) ## End model fitting tab
+    ), ## End model fitting tab
+    tabPanel(
+        title = "Measurement error",
+        sidebarLayout(
+            sidebarPanel(
+                sliderInput(
+                    inputId = "true_slope",
+                    label = "True slope",
+                    min = 1,
+                    max = 4,
+                    value = 1,
+                    step = 0.1
+                ),
+                selectInput(
+                    inputId = "error_type",
+                    label = "Type of measurement error:",
+                    choices = c(
+                        "Noise" = "noise",
+                        "Over/under-reporting" = "misreport"
+                    )
+                ),
+                conditionalPanel(
+                    condition = "input.error_type == 'noise'",
+                    sliderInput(
+                        inputId = "noise_sd",
+                        label = "Standard deviation of noise",
+                        min = 0,
+                        max = 10,
+                        value = 0,
+                        step = 0.2
+                    )
+                ),
+                conditionalPanel(
+                    condition = "input.error_type == 'misreport'",
+                    radioButtons(
+                        inputId = "misreport_direction",
+                        label = "People with x less/greater than a cutoff misreport",
+                        choices = c(
+                            "Less than" = "misreport_lt",
+                            "Greater than" = "misreport_gt"
+                        )
+                    ),
+                    numericInput(
+                        inputId = "misreport_cutoff",
+                        label = "Cutoff",
+                        value = 20,
+                        min = -Inf,
+                        max = Inf,
+                        step = 1
+                    ),
+                    numericInput(
+                        inputId = "misreport_factor",
+                        label = "Misreporting factor f (report = truth*f)",
+                        value = 1,
+                        min = -Inf,
+                        max = Inf,
+                        step = 0.1
+                    )
+                )
+            ),
+            mainPanel(
+                splitLayout(
+                    plotOutput("plot_true"),
+                    plotOutput("plot_observed"),
+                    cellWidths = c("50%", "50%")
+                )
+            )
+        )
+    ) ## End measurement error tab
 )
 
 server <- function(input, output) {
     state <- reactiveValues(
-        actual_fit = NULL
+        actual_fit = NULL,
+        true_x = runif(SAMPLE_SIZE_MERROR, 10, 30),
+        xobs = NULL,
+        yobs = NULL
     )
 
     ## EDA tab =====================================================================
@@ -187,6 +260,49 @@ server <- function(input, output) {
                 abline(v = state$actual_fit$estimate[state$actual_fit$term==v], lwd = 2, lty = "dashed")
             }
         })
+    })
+
+    ## Measurement error tab =======================================================
+    output$plot_true <- renderPlot({
+        slope <- input$true_slope
+        state$yobs <- TRUE_INTERCEPT + slope*state$true_x + rnorm(SAMPLE_SIZE_MERROR, 0, 2)
+        plot(state$true_x, state$yobs, pch = 16, xlab = "True x", ylab = "Outcome")
+        abline(a = TRUE_INTERCEPT, b = slope, lwd = 2, col = "dodgerblue")
+        legend("topleft", bty = "n", legend = "Truth", col = "dodgerblue", lty = "solid", lwd = 2)
+    })
+
+    x_observed <- reactive({
+        if (input$misreport_direction=="misreport_lt") {
+            x <- state$true_x
+            true_x_subs <- x[x < input$misreport_cutoff]
+            x[x < input$misreport_cutoff] <- true_x_subs*input$misreport_factor
+            x
+        } else if (input$misreport_direction=="misreport_gt") {
+            x <- state$true_x
+            true_x_subs <- x[x > input$misreport_cutoff]
+            x[x > input$misreport_cutoff] <- true_x_subs*input$misreport_factor
+            x
+        }
+    })
+
+    output$plot_observed <- renderPlot({
+        print("a")
+        if (input$error_type=="noise") {
+            state$xobs <- state$true_x + rnorm(SAMPLE_SIZE_MERROR, 0, input$noise_sd)
+            print("b")
+        } else if (input$error_type=="misreport") {
+            print("c")
+            state$xobs <- x_observed()
+        }
+        print("f")
+        df_merror <- data.frame(y = state$yobs, x = state$xobs)
+        print("g")
+        lmfit_merror <- tidy(lm(y ~ x, data = df_merror))
+        print("h")
+        plot(state$xobs, state$yobs, pch = 16, xlab = "Observed x", ylab = "Outcome")
+        abline(a = TRUE_INTERCEPT, b = input$true_slope, lwd = 2, col = "dodgerblue")
+        abline(a = lmfit_merror$estimate[1], b = lmfit_merror$estimate[2], lwd = 1, col = "red", lty = "dashed")
+        legend("topleft", bty = "n", legend = c("Truth", "Estimated"), col = c("dodgerblue", "red"), lty = c("solid", "dashed"), lwd = c(2,1))
     })
 }
 
